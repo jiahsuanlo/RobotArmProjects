@@ -432,13 +432,20 @@ static void simLoop(int pause)
 
 void drawArms()
 {
+	// define colors
+	std::vector<double> rc = { 1,0,0,1,0,0.25,1 };
+	std::vector<double> gc = { 0,1,0,1,1, 0.5,1 };
+	std::vector<double> bc = { 0,0,1,0,1,   0,1 };
+
 	// draw links
-	dsSetColor(1.0, 1.0, 1.0); // set color;
 	int nl = int(links.size());
+	int i = 0;
 	for (auto &lk : links)
 	{
+		dsSetColor(rc[i], gc[i], bc[i]); // set color;
 		dsDrawCapsuleD(dBodyGetPosition(lk.bid)
 			, dBodyGetRotation(lk.bid), lk.length, lk.radius);
+		i++;
 	}
 
 	// draw gripper
