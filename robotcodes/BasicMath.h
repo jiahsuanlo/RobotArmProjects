@@ -43,5 +43,8 @@ namespace BM
 		double z;
 	};
 	std::ostream &operator<<(std::ostream &output, const Point3 &pt);
-
+	Point3 operator +(const Point3 &pt1, const Point3 &pt2);
+	Point3 operator -(const Point3 &pt1, const Point3 &pt2);
+	Point3 operator *(double n, const Point3 &pt1);
+	Point3 operator /(const Point3 &pt, double n);
 }

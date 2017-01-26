@@ -53,6 +53,44 @@ std::ostream & BM::operator<<(std::ostream & output, const Point3 & pt)
 	return output;
 }
 
+Point3 BM::operator+(const Point3 & pt1, const Point3 & pt2)
+{
+	Point3 out;
+	out.x = pt1.x + pt2.x;
+	out.y = pt1.y + pt2.y;
+	out.z = pt1.z + pt2.z;
+	return out;
+}
+
+Point3 BM::operator-(const Point3 & pt1, const Point3 & pt2)
+{
+	Point3 out;
+	out.x = pt1.x - pt2.x;
+	out.y = pt1.y - pt2.y;
+	out.z = pt1.z - pt2.z;
+	return out;
+}
+
+Point3 BM::operator*(double n, const Point3 & pt1)
+{
+	Point3 out;
+	out.x = n*pt1.x;
+	out.y = n*pt1.y;
+	out.z = n*pt1.z;
+
+	return out;
+
+}
+
+Point3 BM::operator/(const Point3 & pt, double n)
+{
+	Point3 out;
+	out.x = pt.x / n;
+	out.y = pt.y / n;
+	out.z = pt.z / n;
+	return out;
+}
+
 double BM::Point2::dot(const Point2 & pt)
 {
 	return x*pt.x+y*pt.y;

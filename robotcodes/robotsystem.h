@@ -28,8 +28,7 @@ public:
 	double mass;
 
 	double length;
-	double radius;
-	
+	double radius;	
 };
 
 class Box
@@ -97,13 +96,22 @@ struct Joint
 // ===== robot calculation functions =====
 struct DMParameter
 {
-
+	DMParameter(double a, double alpha, double d, double theta) :
+		a(a), alpha(alpha), d(d), theta(theta) {}
+	double a;
+	double alpha;
+	double d;
+	double theta;
 };
+
 void rotx(double theta, Eigen::Matrix3d &rmat);
 void roty(double theta, Eigen::Matrix3d &rmat);
 void rotz(double theta, Eigen::Matrix3d &rmat);
 void rot_zyz(double thz, double thy, double thz1, Eigen::Matrix3d &rmat);
-
+void tmDM(const DMParameter &dm, Eigen::Matrix4d &tm);
+void obtainJointLinkInfoFromDM(const std::vector<DMParameter> &dmp,
+	std::vector<Point3> &jntAnchors, std::vector<Point3> &jntAxes,
+	std::vector<double> &linkLengths, std::vector<Point3> &linkCMs);
 
 
 

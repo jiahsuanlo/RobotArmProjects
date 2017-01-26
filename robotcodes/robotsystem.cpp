@@ -99,3 +99,66 @@ void rot_zyz(double thz, double thy, double thz1, Eigen::Matrix3d & rmat)
 		sin(thz)*cos(thy)*cos(thz1) + sin(thz1)*cos(thz), -sin(thz)*sin(thz1)*cos(thy) + cos(thz)*cos(thz1), sin(thy)*sin(thz),
 		-sin(thy - thz1), cos(thy - thz1), 0;
 }
+
+/* obtain 4x4 transformation matrix out of DM parameters*/
+void tmDM(const DMParameter & dm, Eigen::Matrix4d & tm)
+{
+	double a = dm.a;
+	double d = dm.d;
+	double cth = std::cos(dm.theta);
+	double sth = std::sin(dm.theta);
+	double ca = std::cos(dm.alpha);
+	double sa = std::sin(dm.alpha);
+
+	tm << cth, -sth*ca, sth*sa, a*cth,
+		sth, cth*ca, -cth*sa, a*sth,
+		0, sa, ca, d,
+		0, 0, 0, 1;
+}
+
+/* Obtain joint and link information from Denavit-Hartenburg parameters
+output:
+	jntAnchors: joint anchor locations
+	jntAxes: joint axis
+	linkLengths: link lengths
+	linkCMs: positions of all links
+*/
+void obtainJointLinkInfoFromDM(const std::vector<DMParameter>& dmp, 
+	std::vector<Point3>& jntAnchors, std::vector<Point3>& jntAxes, 
+	std::vector<double>& linkLengths, std::vector<Point3>& linkCMs)
+{
+	// clear output vectors first
+	jntAnchors.clear();
+	jntAxes.clear();
+	linkLengths.clear();
+	linkCMs.clear();
+	
+	// loop through all links
+	Eigen::Matrix4d tmat, tmat1;
+	Point3 end_prev(0, 0, 0);
+	Point3 axis(0, 0, 1);
+	jntAxes.push_back(axis);
+	jntAnchors.push_back(end_prev); // base joint anchor position
+	Point3 cm;
+	tmat = Eigen::Matrix4d::Identity();
+	for (auto dm : dmp)
+	{
+		// transform now
+		tmDM(dm, tmat1);
+		tmat = tmat*tmat1;
+		// cm position
+		Point3 end(tmat(0, 3), tmat(1, 3), tmat(2, 3));
+		cm = 0.5*(end + end_prev);
+		end_prev = end;  // update
+		// joint axis (z axis)
+		axis.x = tmat(0, 2); axis.y = tmat(1, 2); axis.z = tmat(2, 2);
+		// link length
+		double lnkL = std::sqrt(dm.a*dm.a + dm.d*dm.d);
+
+		// add to output
+		jntAxes.push_back(axis);
+		jntAnchors.push_back(end);
+		linkCMs.push_back(cm);
+		linkLengths.push_back(lnkL);
+	}
+}

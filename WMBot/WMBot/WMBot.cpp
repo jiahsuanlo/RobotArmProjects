@@ -39,11 +39,11 @@ void configureLinks();  // robot arms
 void configureGripper();  // gripper 
 void configureObjects(); // object to be picked up
 
-						 // === joint modeling functions
+// === joint modeling functions
 void configureArmJoints(); // arm joints
 void configureGripperJoints(); // gripper joints
 
-							   // === control functions 
+// === control functions 
 void jointControl(); // arm joint controls
 void gripperControl(); // gripper joint controls
 void gripperControl1();
@@ -61,6 +61,51 @@ void drawObjects();  // draw objects
 
 // =============================================
 // main function 
+int mainOld(int argc, char *argv[])
+{
+	dsFunctions fn; // an variable for drawstuff;
+	fn.version = DS_VERSION;
+	fn.start = &start;
+	fn.step = &simLoop;
+	fn.stop = NULL;
+	fn.command = &command;
+	fn.path_to_textures = "c:/dev/ode-0.13/drawstuff/textures";
+
+	dInitODE();  // Initalize ODE;
+	world = dWorldCreate();  // create a dynamic world;
+	dWorldSetGravity(world, 0, 0, -9.81); // set gravity;
+
+	//=============================
+	// set spaces
+	space = dHashSpaceCreate(0);
+	groundSpace = dHashSpaceCreate(space);
+	gripperSpace = dHashSpaceCreate(space);
+	objectSpace = dHashSpaceCreate(space);
+	dSpaceSetSublevel(groundSpace, 1);
+	dSpaceSetSublevel(gripperSpace, 1);
+	dSpaceSetSublevel(objectSpace, 1);
+
+	contactGroup = dJointGroupCreate(0);
+	// create ground
+	ground = dCreatePlane(groundSpace, 0.0, 0.0, 1.0, 0.0);  // z= 0 plane
+	
+	configureLinks();
+	configureGripper();
+	configureObjects();
+	//configureBoxes();
+
+	configureArmJoints();
+	configureGripperJoints();
+
+	dsSimulationLoop(argc, argv, 1024, 768, &fn); // simulation loop;
+
+	dWorldDestroy(world);
+	dCloseODE(); // close ODE
+
+	delete feedback;
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	dsFunctions fn; // an variable for drawstuff;
@@ -105,7 +150,36 @@ int main(int argc, char *argv[])
 	delete feedback;
 	return 0;
 }
+
 // =============================================
+
+int mainTest(int argc, char *argv[])
+{
+	std::vector<DMParameter> dms;
+	dms.push_back(DMParameter(0, -0.5*M_PI, 10, 0));
+	dms.push_back(DMParameter(10, 0, 0 ,-0.5*M_PI));
+
+	std::vector<Point3> jntAnc, jntAx;
+	std::vector<Point3> linkCM;
+	std::vector<double> linkLen;
+	obtainJointLinkInfoFromDM(dms, jntAnc, jntAx, linkLen, linkCM);
+
+	// print
+	for (int i = 0; i<int(jntAnc.size()); ++i)
+	{
+		std::cout << "joint " << i << " anchor: " << jntAnc[i];
+		std::cout << "joint " << i << " axis: " << jntAx[i];
+	}
+	for (int i = 0; i<int(linkLen.size()); ++i)
+	{
+		std::cout << "link " << i+1 << " CM: " << linkCM[i];
+		std::cout << "link " << i+1 << " length: " << linkLen[i]<<"\n";
+	}
+
+
+	std::system("pause");
+	return 0;
+}
 
 
 void configureLinks()
