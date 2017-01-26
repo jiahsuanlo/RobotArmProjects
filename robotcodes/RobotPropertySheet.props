@@ -3,7 +3,7 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <IncludePath>..\..\robotcodes;C:\dev\ode-0.13\include;$(IncludePath)</IncludePath>
+    <IncludePath>C:\dev\eigen_3_2_10\eigen_3_2_10;..\..\robotcodes;C:\dev\ode-0.13\include;$(IncludePath)</IncludePath>
     <LibraryPath>C:\dev\ode-0.13\lib\ReleaseDoubleLib;$(LibraryPath)</LibraryPath>
     <_PropertySheetDisplayName>RobotPropertySheet</_PropertySheetDisplayName>
   </PropertyGroup>

@@ -5,8 +5,11 @@
 #include <vector>
 #include <BasicMath.h>
 #include <cmath>
+#include <Eigen/Dense>
+
 using namespace BM;
 
+// ===== robot data storage =====
 class Link
 {
 public:
@@ -90,5 +93,18 @@ struct Joint
 	double upperBound;
 	double lowerBound;
 };
+
+// ===== robot calculation functions =====
+struct DMParameter
+{
+
+};
+void rotx(double theta, Eigen::Matrix3d &rmat);
+void roty(double theta, Eigen::Matrix3d &rmat);
+void rotz(double theta, Eigen::Matrix3d &rmat);
+void rot_zyz(double thz, double thy, double thz1, Eigen::Matrix3d &rmat);
+
+
+
 
 
