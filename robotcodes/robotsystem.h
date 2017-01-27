@@ -94,24 +94,36 @@ struct Joint
 };
 
 // ===== robot calculation functions =====
-struct DMParameter
+struct DHParameter
 {
-	DMParameter(double a, double alpha, double d, double theta) :
+	DHParameter(double a, double alpha, double d, double theta) :
 		a(a), alpha(alpha), d(d), theta(theta) {}
+	
 	double a;
 	double alpha;
 	double d;
 	double theta;
+};
+struct Quaternion
+{
+	Quaternion(double e0, double e1, double e2, double e3) :
+		e0(e0), e1(e1), e2(e2), e3(e3) {}
+	Quaternion() :e0(0), e1(0), e2(0), e3(0) {}
+	double e0;
+	double e1;
+	double e2;
+	double e3;
 };
 
 void rotx(double theta, Eigen::Matrix3d &rmat);
 void roty(double theta, Eigen::Matrix3d &rmat);
 void rotz(double theta, Eigen::Matrix3d &rmat);
 void rot_zyz(double thz, double thy, double thz1, Eigen::Matrix3d &rmat);
-void tmDM(const DMParameter &dm, Eigen::Matrix4d &tm);
-void obtainJointLinkInfoFromDM(const std::vector<DMParameter> &dmp,
+void tmDM(const DHParameter &dm, Eigen::Matrix4d &tm);
+void obtainJointLinkInfoFromDH(const std::vector<DHParameter> &dmp,
 	std::vector<Point3> &jntAnchors, std::vector<Point3> &jntAxes,
 	std::vector<double> &linkLengths, std::vector<Point3> &linkCMs);
+void quaternionFromRM(const Eigen::Matrix3d &rm, Quaternion &quat);
 
 
 

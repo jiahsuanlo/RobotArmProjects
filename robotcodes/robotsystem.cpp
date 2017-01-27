@@ -101,7 +101,7 @@ void rot_zyz(double thz, double thy, double thz1, Eigen::Matrix3d & rmat)
 }
 
 /* obtain 4x4 transformation matrix out of DM parameters*/
-void tmDM(const DMParameter & dm, Eigen::Matrix4d & tm)
+void tmDM(const DHParameter & dm, Eigen::Matrix4d & tm)
 {
 	double a = dm.a;
 	double d = dm.d;
@@ -123,7 +123,7 @@ output:
 	linkLengths: link lengths
 	linkCMs: positions of all links
 */
-void obtainJointLinkInfoFromDM(const std::vector<DMParameter>& dmp, 
+void obtainJointLinkInfoFromDH(const std::vector<DHParameter>& dmp, 
 	std::vector<Point3>& jntAnchors, std::vector<Point3>& jntAxes, 
 	std::vector<double>& linkLengths, std::vector<Point3>& linkCMs)
 {
@@ -161,4 +161,12 @@ void obtainJointLinkInfoFromDM(const std::vector<DMParameter>& dmp,
 		linkCMs.push_back(cm);
 		linkLengths.push_back(lnkL);
 	}
+}
+
+void quaternionFromRM(const Eigen::Matrix3d & rm, Quaternion & quat)
+{
+	Quaternion out;
+	out.e0 = 0.5*std::sqrt(rm.trace()+1.0);
+
+	return out;
 }

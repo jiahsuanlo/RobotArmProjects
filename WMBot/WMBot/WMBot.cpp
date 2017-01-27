@@ -23,6 +23,7 @@ static dJointGroupID contactGroup;
 
 static dGeomID ground;
 
+static std::vector<DHParameter> dhVec;  // DH vector
 static std::vector<Joint> joints;     // links, link[0] is a base;
 static std::vector<Joint> gjoints;  // gripper joints
 static std::vector<Link> links;    // joints, joint[0] is a fixed joint;  joint[0]
@@ -35,6 +36,7 @@ static std::vector<Cylinder> cylinders;
 dJointFeedback *feedback = new dJointFeedback;
 
 // === rigidbody modeling functions
+void configureDHs();  // DH parameters
 void configureLinks();  // robot arms
 void configureGripper();  // gripper 
 void configureObjects(); // object to be picked up
@@ -134,6 +136,9 @@ int main(int argc, char *argv[])
 	// create ground
 	ground = dCreatePlane(groundSpace, 0.0, 0.0, 1.0, 0.0);  // z= 0 plane
 
+	// hard code DH parameters
+	configureDHs();
+
 	configureLinks();
 	configureGripper();
 	configureObjects();
@@ -155,14 +160,14 @@ int main(int argc, char *argv[])
 
 int mainTest(int argc, char *argv[])
 {
-	std::vector<DMParameter> dms;
-	dms.push_back(DMParameter(0, -0.5*M_PI, 10, 0));
-	dms.push_back(DMParameter(10, 0, 0 ,-0.5*M_PI));
+	std::vector<DHParameter> dms;
+	dms.push_back(DHParameter(0, -0.5*M_PI, 10, 0));
+	dms.push_back(DHParameter(10, 0, 0 ,-0.5*M_PI));
 
 	std::vector<Point3> jntAnc, jntAx;
 	std::vector<Point3> linkCM;
 	std::vector<double> linkLen;
-	obtainJointLinkInfoFromDM(dms, jntAnc, jntAx, linkLen, linkCM);
+	obtainJointLinkInfoFromDH(dms, jntAnc, jntAx, linkLen, linkCM);
 
 	// print
 	for (int i = 0; i<int(jntAnc.size()); ++i)
@@ -181,6 +186,16 @@ int mainTest(int argc, char *argv[])
 	return 0;
 }
 
+void configureDHs()
+{
+	std::vector<double> lengths = { 0.1,0.2,0.4,0.3,0.1,0.1,0.1 };
+	dhVec.push_back(DHParameter(0, -0.5*M_PI, lengths[1], 0.0));  // link 1
+	dhVec.push_back(DHParameter(lengths[2], 0.0, 0.0, 0.0));  // link 2
+	dhVec.push_back(DHParameter(0, -0.5*M_PI, lengths[1], 0.0)); // link3
+	dhVec.push_back(DHParameter(0, -0.5*M_PI, lengths[1], 0.0)); // link 4
+	dhVec.push_back(DHParameter(0, -0.5*M_PI, lengths[1], 0.0)); // link 5
+	dhVec.push_back(DHParameter(0, -0.5*M_PI, lengths[1], 0.0)); // link 6
+}
 
 void configureLinks()
 {
