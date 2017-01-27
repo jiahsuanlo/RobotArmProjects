@@ -100,20 +100,89 @@ void rot_zyz(double thz, double thy, double thz1, Eigen::Matrix3d & rmat)
 		-sin(thy - thz1), cos(thy - thz1), 0;
 }
 
-/* obtain 4x4 transformation matrix out of DM parameters*/
-void tmDM(const DHParameter & dm, Eigen::Matrix4d & tm)
+void rot_zyx(double thz, double thy, double thx, Eigen::Matrix3d & rmat)
 {
-	double a = dm.a;
-	double d = dm.d;
-	double cth = std::cos(dm.theta);
-	double sth = std::sin(dm.theta);
-	double ca = std::cos(dm.alpha);
-	double sa = std::sin(dm.alpha);
+	rmat << cos(thy)*cos(thz), sin(thx)*sin(thy)*cos(thz) - sin(thz)*cos(thx), sin(thx)*sin(thz) + sin(thy)*cos(thx)*cos(thz),
+		sin(thz)*cos(thy), sin(thx)*sin(thy)*sin(thz) + cos(thx)*cos(thz), -sin(thx)*cos(thz) + sin(thy)*sin(thz)*cos(thx),
+		-sin(thy), sin(thx)*cos(thy), cos(thx)*cos(thy);
+}
+
+/* obtain 4x4 transformation matrix out of DM parameters*/
+void tmDH(const DHParameter & dh, Eigen::Matrix4d & tm)
+{
+	double a = dh.a;
+	double d = dh.d;
+	double cth = std::cos(dh.theta);
+	double sth = std::sin(dh.theta);
+	double ca = std::cos(dh.alpha);
+	double sa = std::sin(dh.alpha);
 
 	tm << cth, -sth*ca, sth*sa, a*cth,
 		sth, cth*ca, -cth*sa, a*sth,
 		0, sa, ca, d,
 		0, 0, 0, 1;
+}
+
+void tmZYX(const ZYXParameter & zyx, Eigen::Matrix4d & tm)
+{
+	Eigen::Matrix3d rm;
+	tm = Eigen::Matrix4d::Identity();
+	Eigen::Matrix4d tmat;
+	// z rotation
+	rotz(zyx.thz, rm);
+	tmat<< rm(0, 0), rm(0, 1), rm(0, 2), 0,
+		rm(1, 0), rm(1, 1), rm(1, 2),    0,
+		rm(2, 0), rm(2, 1), rm(2, 2), zyx.dr.z,
+		0.0, 0.0, 0.0, 1.0;
+	tm = tm*tmat;
+	// y rotation
+	roty(zyx.thy, rm);
+	tmat << rm(0, 0), rm(0, 1), rm(0, 2), 0,
+		rm(1, 0), rm(1, 1), rm(1, 2), zyx.dr.y,
+		rm(2, 0), rm(2, 1), rm(2, 2), 0,
+		0.0, 0.0, 0.0, 1.0;
+	tm = tm*tmat;
+	// x rotation
+	rotx(zyx.thx, rm);
+	tmat << rm(0, 0), rm(0, 1), rm(0, 2), zyx.dr.x,
+		rm(1, 0), rm(1, 1), rm(1, 2), 0,
+		rm(2, 0), rm(2, 1), rm(2, 2), 0,
+		0.0, 0.0, 0.0, 1.0;
+	tm = tm*tmat;
+}
+
+void tmZYXs(const std::vector<ZYXParameter>& zyxs, Eigen::Matrix4d & tm)
+{
+	// initialize tm
+	tm = Eigen::Matrix4d::Identity();
+	
+	Eigen::Matrix4d tmat;
+
+	for (auto zyx : zyxs)
+	{
+		tmZYX(zyx, tmat);
+		tm = tm*tmat;
+	}
+}
+
+void tmZYXs(const std::vector<ZYXParameter>& zyxs, int iFirst, int iLast, Eigen::Matrix4d & tm)
+{
+	// initialize tm
+	tm = Eigen::Matrix4d::Identity();
+
+	Eigen::Matrix4d tmat;
+	int npt = int(zyxs.size());
+	
+	// error protection
+	if (iLast < iFirst)
+		throw std::runtime_error("Last index is smaller than first");
+	
+
+	for (int i = iFirst; i <= std::min(npt - 1, iLast); ++i)
+	{
+		tmZYX(zyxs[i], tmat);
+		tm = tm*tmat;
+	}
 }
 
 /* Obtain joint and link information from Denavit-Hartenburg parameters
@@ -144,7 +213,7 @@ void obtainJointLinkInfoFromDH(const std::vector<DHParameter>& dmp,
 	for (auto dm : dmp)
 	{
 		// transform now
-		tmDM(dm, tmat1);
+		tmDH(dm, tmat1);
 		tmat = tmat*tmat1;
 		// cm position
 		Point3 end(tmat(0, 3), tmat(1, 3), tmat(2, 3));
@@ -165,8 +234,17 @@ void obtainJointLinkInfoFromDH(const std::vector<DHParameter>& dmp,
 
 void quaternionFromRM(const Eigen::Matrix3d & rm, Quaternion & quat)
 {
-	Quaternion out;
-	out.e0 = 0.5*std::sqrt(rm.trace()+1.0);
+	quat.e0 = 0.5*std::sqrt(rm.trace()+1.0);
+	double r11, r12, r13, r21, r22, r23, r31, r32, r33;
+	r11= rm(0, 0); r12 = rm(0, 1); r13 = rm(0, 2);
+	r21 = rm(1, 0); r22 = rm(1, 1); r23 = rm(1, 2);
+	r31 = rm(2, 0); r32 = rm(2, 1); r23 = rm(2, 2);
 
-	return out;
+	double sgn;
+	sgn= (int((r32 - r23)>0)*2.0)-1.0;
+	quat.e1 = 0.5*sgn*std::sqrt(r11 - r22 - r33 + 1.0);
+	sgn = (int((r13 - r31)>0)*2.0) - 1.0;
+	quat.e2 = 0.5*sgn*std::sqrt(r22 - r33 - r11 + 1.0);
+	sgn = (int((r21 - r12)>0)*2.0) - 1.0;
+	quat.e3 = 0.5*sgn*std::sqrt(r33 - r11 - r22 + 1.0);
 }

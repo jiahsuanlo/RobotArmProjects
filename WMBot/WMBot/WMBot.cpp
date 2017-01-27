@@ -23,7 +23,7 @@ static dJointGroupID contactGroup;
 
 static dGeomID ground;
 
-static std::vector<DHParameter> dhVec;  // DH vector
+static std::vector<ZYXParameter> zyxVec;  // ZYX vector
 static std::vector<Joint> joints;     // links, link[0] is a base;
 static std::vector<Joint> gjoints;  // gripper joints
 static std::vector<Link> links;    // joints, joint[0] is a fixed joint;  joint[0]
@@ -36,7 +36,7 @@ static std::vector<Cylinder> cylinders;
 dJointFeedback *feedback = new dJointFeedback;
 
 // === rigidbody modeling functions
-void configureDHs();  // DH parameters
+void configureZYXs();  // ZYX parameters
 void configureLinks();  // robot arms
 void configureGripper();  // gripper 
 void configureObjects(); // object to be picked up
@@ -108,7 +108,7 @@ int mainOld(int argc, char *argv[])
 	return 0;
 }
 
-int main(int argc, char *argv[])
+int mainNow(int argc, char *argv[])
 {
 	dsFunctions fn; // an variable for drawstuff;
 	fn.version = DS_VERSION;
@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
 	ground = dCreatePlane(groundSpace, 0.0, 0.0, 1.0, 0.0);  // z= 0 plane
 
 	// hard code DH parameters
-	configureDHs();
+	configureZYXs();
 
 	configureLinks();
 	configureGripper();
@@ -158,43 +158,40 @@ int main(int argc, char *argv[])
 
 // =============================================
 
-int mainTest(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
-	std::vector<DHParameter> dms;
-	dms.push_back(DHParameter(0, -0.5*M_PI, 10, 0));
-	dms.push_back(DHParameter(10, 0, 0 ,-0.5*M_PI));
+	
+	configureZYXs();
+	Eigen::Matrix4d tm,tm0,tm1;
+	tmZYXs(zyxVec, tm);
 
-	std::vector<Point3> jntAnc, jntAx;
-	std::vector<Point3> linkCM;
-	std::vector<double> linkLen;
-	obtainJointLinkInfoFromDH(dms, jntAnc, jntAx, linkLen, linkCM);
 
-	// print
-	for (int i = 0; i<int(jntAnc.size()); ++i)
-	{
-		std::cout << "joint " << i << " anchor: " << jntAnc[i];
-		std::cout << "joint " << i << " axis: " << jntAx[i];
-	}
-	for (int i = 0; i<int(linkLen.size()); ++i)
-	{
-		std::cout << "link " << i+1 << " CM: " << linkCM[i];
-		std::cout << "link " << i+1 << " length: " << linkLen[i]<<"\n";
-	}
-
+	tmZYX(zyxVec[0], tm0);
+	std::cout << "tm0:\n" << tm0<<"\n";
+	std::cout << "thz1= " << zyxVec[1].thz << "\n";
+	tmZYX(zyxVec[1], tm1);
+	std::cout << "tm01:\n" << tm1 << "\n";
+	
+	
+	
+	tmZYXs(zyxVec,tm0);
+	std::cout << "tm:\n" << tm0 << "\n";
+	std::cout << "transformation matrix:\n" << tm << std::endl;
 
 	std::system("pause");
 	return 0;
 }
 
-void configureDHs()
+void configureZYXs()
 {
-	std::vector<double> lengths = { 0.1,0.2,0.4,0.3,0.1,0.1,0.1 };
-	dhVec.push_back(DHParameter(0, -0.5*M_PI, lengths[1], 0.0));  // link 1
-	dhVec.push_back(DHParameter(lengths[2], 0.0, 0.0, 0.0));  // link 2
-	dhVec.push_back(DHParameter(0, -0.5*M_PI, lengths[1], 0.0)); // link3
-	dhVec.push_back(DHParameter(0, -0.5*M_PI, lengths[1], 0.0)); // link 4
-	dhVec.push_back(DHParameter(0, -0.5*M_PI, lengths[1], 0.0)); // link 5
-	dhVec.push_back(DHParameter(0, -0.5*M_PI, lengths[1], 0.0)); // link 6
+	std::vector<double> ls = {0.1,0.2,0.4,0.3,0.1,0.1,0.1 };
+	zyxVec.clear();
+	zyxVec.push_back(ZYXParameter(Point3(ls[0]+ls[1],0,0),0,-0.5*M_PI,-0.5*M_PI));  // link 1
+	zyxVec.push_back(ZYXParameter(Point3(ls[2],0,0), 0, 0, 0));  // link 2
+	zyxVec.push_back(ZYXParameter(Point3(ls[3], 0, 0), 0, 0.5*M_PI, 0));  // link 3
+	zyxVec.push_back(ZYXParameter(Point3(0,0,ls[4]), 0, -0.5*M_PI, 0));  // link 4
+	zyxVec.push_back(ZYXParameter(Point3(ls[5], 0, 0), 0, 0.5*M_PI, 0));  // link 5
+	zyxVec.push_back(ZYXParameter(Point3(0,0,ls[6]), 0, 0, 0));  // link 6
 }
 
 void configureLinks()
@@ -316,9 +313,9 @@ void jointControl()
 	double angErr;
 	for (int i = 1; i != nj; ++i)
 	{
-		angNow = dJointGetHingeAngle(joints[i].jid);  // current joint angle; [rad]
+		angNow = -dJointGetHingeAngle(joints[i].jid);  // current joint angle; [rad]
 		angErr = joints[i].targetAngle - angNow;  // target - current; 
-		dJointSetHingeParam(joints[i].jid, dParamVel, k1*angErr); // angular velocity;
+		dJointSetHingeParam(joints[i].jid, dParamVel, -k1*angErr); // angular velocity;
 		dJointSetHingeParam(joints[i].jid, dParamFMax, fMax); // max torque;
 	}
 }
@@ -505,6 +502,22 @@ static void simLoop(int pause)
 
 	jointControl();
 	gripperControl();
+
+	//----- forward kinematics
+	// update ZYX parameters
+	Eigen::Matrix4d tm;
+	for (int i = 0; i < 6; ++i)
+	{
+		zyxVec[i].thz = joints[i+1].targetAngle;
+	}
+	tmZYXs(zyxVec, tm);
+	std::cout << "angle= " << zyxVec[1].thz << " ODE angle= " << dJointGetHingeAngle(joints[2].jid) << "\n";
+	std::cout << "tip location= " << tm(0, 3) << ", " << tm(1, 3) << ", " << tm(2, 3);
+	const dReal *pos= dBodyGetPosition(gripperParts[0].bid);
+//	std::cout << " ODE tip location= " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n";
+	std::cout << " ODE tip location= " << pos[2] << "\n";
+
+	//-----------------------
 
 	dWorldStep(world, tStep);
 

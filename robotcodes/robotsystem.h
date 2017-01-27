@@ -104,6 +104,16 @@ struct DHParameter
 	double d;
 	double theta;
 };
+struct ZYXParameter
+{
+	ZYXParameter() :thz(0.0), thy(0.0), thx(0.0) {};
+	ZYXParameter(const Point3 &dr, double thz, double thy, double thx):
+		thz(thz), thy(thy), thx(thx),dr(dr) {};
+	
+	Point3 dr;
+	double thz, thy, thx;
+};
+
 struct Quaternion
 {
 	Quaternion(double e0, double e1, double e2, double e3) :
@@ -119,7 +129,13 @@ void rotx(double theta, Eigen::Matrix3d &rmat);
 void roty(double theta, Eigen::Matrix3d &rmat);
 void rotz(double theta, Eigen::Matrix3d &rmat);
 void rot_zyz(double thz, double thy, double thz1, Eigen::Matrix3d &rmat);
-void tmDM(const DHParameter &dm, Eigen::Matrix4d &tm);
+void rot_zyx(double thz, double thy, double thx, Eigen::Matrix3d &rmat);
+void tmDH(const DHParameter &dh, Eigen::Matrix4d &tm);
+void tmZYX(const ZYXParameter &zyx, Eigen::Matrix4d &tm);
+void tmZYXs(const std::vector<ZYXParameter> &zyxs, Eigen::Matrix4d &tm);
+void tmZYXs(const std::vector<ZYXParameter> &zyxs, int iFirst, int iLast,
+	Eigen::Matrix4d &tm);
+
 void obtainJointLinkInfoFromDH(const std::vector<DHParameter> &dmp,
 	std::vector<Point3> &jntAnchors, std::vector<Point3> &jntAxes,
 	std::vector<double> &linkLengths, std::vector<Point3> &linkCMs);
