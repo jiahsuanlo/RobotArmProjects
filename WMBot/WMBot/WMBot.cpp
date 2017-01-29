@@ -13,6 +13,7 @@
 #endif
 
 double tStep = 0.01;
+static int ct = 0;
 static dWorldID world;         // a dynamic world;
 
 static dSpaceID space;
@@ -24,6 +25,7 @@ static dJointGroupID contactGroup;
 static dGeomID ground;
 
 static std::vector<ZYXParameter> zyxVec;  // ZYX vector
+static std::vector<DHParameter> dhVec; // DH parameters
 static std::vector<Joint> joints;     // links, link[0] is a base;
 static std::vector<Joint> gjoints;  // gripper joints
 static std::vector<Link> links;    // joints, joint[0] is a fixed joint;  joint[0]
@@ -37,6 +39,7 @@ dJointFeedback *feedback = new dJointFeedback;
 
 // === rigidbody modeling functions
 void configureZYXs();  // ZYX parameters
+void configureDHs(); // configure DH parameters
 void configureLinks();  // robot arms
 void configureGripper();  // gripper 
 void configureObjects(); // object to be picked up
@@ -108,7 +111,7 @@ int mainOld(int argc, char *argv[])
 	return 0;
 }
 
-int mainNow(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	dsFunctions fn; // an variable for drawstuff;
 	fn.version = DS_VERSION;
@@ -137,7 +140,7 @@ int mainNow(int argc, char *argv[])
 	ground = dCreatePlane(groundSpace, 0.0, 0.0, 1.0, 0.0);  // z= 0 plane
 
 	// hard code DH parameters
-	configureZYXs();
+	configureDHs();
 
 	configureLinks();
 	configureGripper();
@@ -158,26 +161,31 @@ int mainNow(int argc, char *argv[])
 
 // =============================================
 
-int main(int argc, char *argv[])
+int mainTest(int argc, char *argv[])
 {
 	
-	configureZYXs();
-	Eigen::Matrix4d tm,tm0,tm1;
-	tmZYXs(zyxVec, tm);
+	configureDHs();
 
+	// base tm
+	Eigen::Matrix4d tmB0;
+	tmB0 = Eigen::Matrix4d::Identity();
+	tmB0(0, 3) = 0; tmB0(1, 3) = 0; tmB0(2, 3) = 0.3;
 
-	tmZYX(zyxVec[0], tm0);
-	std::cout << "tm0:\n" << tm0<<"\n";
-	std::cout << "thz1= " << zyxVec[1].thz << "\n";
-	tmZYX(zyxVec[1], tm1);
-	std::cout << "tm01:\n" << tm1 << "\n";
-	
-	
-	
-	tmZYXs(zyxVec,tm0);
-	std::cout << "tm:\n" << tm0 << "\n";
-	std::cout << "transformation matrix:\n" << tm << std::endl;
+	Eigen::Matrix4d tm,tm1,tm2,tm3;
+	// total 
+	tmDHs(dhVec, tm);
+	tm = tmB0*tm;
 
+	std::cout << "tip= " << tm<<"\n";
+
+	// debug 
+	tmDH(dhVec[0], tm1);
+	std::cout << "tm01:\n" << tmB0*tm1<<"\n";
+	dhVec[1].setTheta(-0.5*M_PI);
+	std::cout << "thz1= " << dhVec[1].getTheta() << "\n";
+	tmDH(dhVec[1], tm2);
+	std::cout << "tm02:\n" << tmB0*tm1*tm2 << "\n";
+	
 	std::system("pause");
 	return 0;
 }
@@ -192,6 +200,18 @@ void configureZYXs()
 	zyxVec.push_back(ZYXParameter(Point3(0,0,ls[4]), 0, -0.5*M_PI, 0));  // link 4
 	zyxVec.push_back(ZYXParameter(Point3(ls[5], 0, 0), 0, 0.5*M_PI, 0));  // link 5
 	zyxVec.push_back(ZYXParameter(Point3(0,0,ls[6]), 0, 0, 0));  // link 6
+}
+
+void configureDHs()
+{
+	std::vector<double> ls = { 0.1,0.2,0.4,0.3,0.1,0.1,0.1 };
+	dhVec.clear();
+	dhVec.push_back(DHParameter(0, -0.5*M_PI, ls[0]+ls[1], 0)); // link1
+	dhVec.push_back(DHParameter(ls[2],0,0,-0.5*M_PI));   // link2
+	dhVec.push_back(DHParameter(0, 0.5*M_PI, 0, 0.5*M_PI));   // link3
+	dhVec.push_back(DHParameter(0, -0.5*M_PI, ls[3] + ls[4], 0));   // link4
+	dhVec.push_back(DHParameter(0, 0.5*M_PI, 0, 0));   // link5
+	dhVec.push_back(DHParameter(0,0, ls[5]+ls[6], 0));   // link6
 }
 
 void configureLinks()
@@ -504,19 +524,23 @@ static void simLoop(int pause)
 	gripperControl();
 
 	//----- forward kinematics
-	// update ZYX parameters
+	// update DH parameters
 	Eigen::Matrix4d tm;
 	for (int i = 0; i < 6; ++i)
 	{
-		zyxVec[i].thz = joints[i+1].targetAngle;
+		dhVec[i].setTheta(joints[i+1].targetAngle);
 	}
-	tmZYXs(zyxVec, tm);
-	std::cout << "angle= " << zyxVec[1].thz << " ODE angle= " << dJointGetHingeAngle(joints[2].jid) << "\n";
-	std::cout << "tip location= " << tm(0, 3) << ", " << tm(1, 3) << ", " << tm(2, 3);
-	const dReal *pos= dBodyGetPosition(gripperParts[0].bid);
-//	std::cout << " ODE tip location= " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n";
-	std::cout << " ODE tip location= " << pos[2] << "\n";
+	tmDHs(dhVec, tm);
 
+	if (ct % 20 == 0)
+	{
+		//std::cout << "angle= " << dhVec[1].getTheta() << " ODE angle= " << dJointGetHingeAngle(joints[2].jid) << "\n";
+		std::cout << "tip location= " << tm(0, 3) << ", " << tm(1, 3) << ", " << tm(2, 3) << "\n";
+		const dReal *pos = dBodyGetPosition(gripperParts[0].bid);
+		std::cout << " ODE tip location= " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n";
+		//std::cout << " ODE tip location= " << pos[2] << "\n";
+	}
+	ct++;
 	//-----------------------
 
 	dWorldStep(world, tStep);
