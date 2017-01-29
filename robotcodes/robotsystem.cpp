@@ -110,17 +110,48 @@ void rot_zyx(double thz, double thy, double thx, Eigen::Matrix3d & rmat)
 /* obtain 4x4 transformation matrix out of DM parameters*/
 void tmDH(const DHParameter & dh, Eigen::Matrix4d & tm)
 {
-	double a = dh.a;
-	double d = dh.d;
-	double cth = std::cos(dh.theta);
-	double sth = std::sin(dh.theta);
-	double ca = std::cos(dh.alpha);
-	double sa = std::sin(dh.alpha);
+	double a = dh.getA();
+	double d = dh.getD();
+	double cth = std::cos(dh.getTheta());
+	double sth = std::sin(dh.getTheta());
+	double ca = std::cos(dh.getAlpha());
+	double sa = std::sin(dh.getAlpha());
 
 	tm << cth, -sth*ca, sth*sa, a*cth,
 		sth, cth*ca, -cth*sa, a*sth,
 		0, sa, ca, d,
 		0, 0, 0, 1;
+}
+
+void tmDHs(const std::vector<DHParameter>& dhs, Eigen::Matrix4d & tm)
+{
+	tm = Eigen::Matrix4d::Identity();
+	Eigen::Matrix4d tmat;
+	for (auto dh : dhs)
+	{
+		tmDH(dh, tmat);
+		tm = tm*tmat;
+	}
+}
+
+void tmDHs(const std::vector<DHParameter>& dhs, int iFirst, int iLast, Eigen::Matrix4d & tm)
+{
+	// initialize tm
+	tm = Eigen::Matrix4d::Identity();
+
+	Eigen::Matrix4d tmat;
+	int npt = int(dhs.size());
+
+	// error protection
+	if (iLast < iFirst)
+		throw std::runtime_error("Last index is smaller than first");
+
+
+	for (int i = iFirst; i <= std::min(npt - 1, iLast); ++i)
+	{
+		tmDH(dhs[i], tmat);
+		tm = tm*tmat;
+	}
 }
 
 void tmZYX(const ZYXParameter & zyx, Eigen::Matrix4d & tm)
@@ -222,7 +253,7 @@ void obtainJointLinkInfoFromDH(const std::vector<DHParameter>& dmp,
 		// joint axis (z axis)
 		axis.x = tmat(0, 2); axis.y = tmat(1, 2); axis.z = tmat(2, 2);
 		// link length
-		double lnkL = std::sqrt(dm.a*dm.a + dm.d*dm.d);
+		double lnkL = std::sqrt(dm.getA()*dm.getA() + dm.getD()*dm.getD());
 
 		// add to output
 		jntAxes.push_back(axis);

@@ -97,8 +97,17 @@ struct Joint
 struct DHParameter
 {
 	DHParameter(double a, double alpha, double d, double theta) :
-		a(a), alpha(alpha), d(d), theta(theta) {}
-	
+		a0(a), alpha0(alpha), d0(d), theta0(theta),
+		a(a), alpha(alpha), d(d), theta(theta) {}	
+	double a0, alpha0, d0, theta0;
+	// setters
+	void setTheta(double th) { theta = theta0 + th; }
+	// getters
+	double getA() const { return a; }
+	double getAlpha() const{ return alpha; }
+	double getD() const{ return d; }
+	double getTheta() const{ return theta; };
+private:
 	double a;
 	double alpha;
 	double d;
@@ -131,6 +140,8 @@ void rotz(double theta, Eigen::Matrix3d &rmat);
 void rot_zyz(double thz, double thy, double thz1, Eigen::Matrix3d &rmat);
 void rot_zyx(double thz, double thy, double thx, Eigen::Matrix3d &rmat);
 void tmDH(const DHParameter &dh, Eigen::Matrix4d &tm);
+void tmDHs(const std::vector<DHParameter> &dhs, Eigen::Matrix4d &tm);
+void tmDHs(const std::vector<DHParameter> &dhs,int iFirst, int iLast, Eigen::Matrix4d &tm);
 void tmZYX(const ZYXParameter &zyx, Eigen::Matrix4d &tm);
 void tmZYXs(const std::vector<ZYXParameter> &zyxs, Eigen::Matrix4d &tm);
 void tmZYXs(const std::vector<ZYXParameter> &zyxs, int iFirst, int iLast,
