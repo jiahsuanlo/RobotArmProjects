@@ -38,6 +38,7 @@ namespace BM
 			:x(0), y(0), z(0) {}
 		Point3(double x, double y, double z)
 			: x(x), y(y), z(z) {}
+		void setZero() { x = 0.0; y = 0.0; z = 0.0; }
 		double x;
 		double y;
 		double z;
@@ -46,5 +47,5 @@ namespace BM
 	Point3 operator +(const Point3 &pt1, const Point3 &pt2);
 	Point3 operator -(const Point3 &pt1, const Point3 &pt2);
 	Point3 operator *(double n, const Point3 &pt1);
-	Point3 operator /(const Point3 &pt, double n);
+	Point3 operator /(const Point3 &pt, double n);	
 }

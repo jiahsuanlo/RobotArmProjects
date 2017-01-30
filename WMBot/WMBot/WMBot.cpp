@@ -35,6 +35,9 @@ static std::vector<Box> boxes;
 static std::vector<Link> caps;
 static std::vector<Cylinder> cylinders;
 
+static Point3 posTarget;
+static Point3 angTarget;
+
 dJointFeedback *feedback = new dJointFeedback;
 
 // === rigidbody modeling functions
@@ -49,6 +52,7 @@ void configureArmJoints(); // arm joints
 void configureGripperJoints(); // gripper joints
 
 // === control functions 
+void getJointAngles(std::vector<double> &angles);
 void jointControl(); // arm joint controls
 void gripperControl(); // gripper joint controls
 void gripperControl1();
@@ -58,6 +62,9 @@ static void nearCallback(void *data, dGeomID g1, dGeomID g2); // contact
 void start();  // ds draw start - camera view settings
 void command(int cmd);  // ds callback command - user input
 static void simLoop(int pause); // ds callback simLoop - simulation loop
+
+void inverseKinematics();
+void inverseKinematicsManual();
 
 								// === drawing functions
 void drawArms(); // draw arms and gripper
@@ -149,7 +156,7 @@ int main(int argc, char *argv[])
 
 	configureArmJoints();
 	configureGripperJoints();
-
+	
 	dsSimulationLoop(argc, argv, 1024, 768, &fn); // simulation loop;
 
 	dWorldDestroy(world);
@@ -324,6 +331,20 @@ void configureGripperJoints()
 	dJointSetSliderParam(gjoints[2].jid, dParamHiStop, 0.1);
 }
 
+void getJointAngles(std::vector<double> &angles)
+{
+	// clear vector
+	angles.clear();
+	
+	int nj = int(joints.size());
+	double angNow;
+	for (int i = 1; i != nj; ++i)
+	{
+		angNow = -dJointGetHingeAngle(joints[i].jid);  // current joint angle; [rad]
+		angles.push_back(angNow);
+	}
+}
+
 void jointControl()
 {
 	double k1 = 10.0, fMax = 300.0; // k1:gain, fMax: max torque[Nm]
@@ -494,6 +515,42 @@ void command(int cmd)
 	case 'h':
 		joints[6].targetAngle -= 0.05;
 		break;
+	case 'z':
+		posTarget.x += 0.01;
+		break;
+	case 'x':
+		posTarget.x -= 0.01;
+		break;
+	case 'c':
+		posTarget.y += 0.01;
+		break;
+	case 'v':
+		posTarget.y -= 0.01;
+		break;
+	case 'b':
+		posTarget.z += 0.01;
+		break;
+	case 'n':
+		posTarget.z -= 0.01;
+		break;
+	case 'i':
+		angTarget.x += 0.01;
+		break;
+	case 'k':
+		angTarget.x -= 0.01;
+		break;
+	case 'o':
+		angTarget.y += 0.01;
+		break;
+	case 'l':
+		angTarget.y -= 0.01;
+		break;
+	case 'p':
+		angTarget.z += 0.01;
+		break;
+	case ';':
+		angTarget.z -= 0.01;
+		break;
 	case 'u':
 		if (gjoints[1].targetAngle > 0)
 			gjoints[1].targetAngle = 0.0;
@@ -520,31 +577,11 @@ static void simLoop(int pause)
 {
 	dSpaceCollide(space, 0, &nearCallback);
 
+	inverseKinematicsManual();
+
 	jointControl();
-	gripperControl();
+	gripperControl();	
 
-	//----- forward kinematics
-	// update DH parameters
-	Eigen::Matrix4d tm,tmat;
-	tm = Eigen::Matrix4d::Identity();
-	for (int i = 0; i < 6; ++i)
-	{
-		dhVec[i].setTheta(joints[i+1].targetAngle);
-		dhVec[i].updateTM();
-		dhVec[i].getTM(tmat);
-		tm = tm*tmat;
-	}
-	//tmDHs(dhVec, tm);
-
-	if (ct % 20 == 0)
-	{
-		//std::cout << "angle= " << dhVec[1].getTheta() << " ODE angle= " << dJointGetHingeAngle(joints[2].jid) << "\n";
-		std::cout << "tip location= " << tm(0, 3) << ", " << tm(1, 3) << ", " << tm(2, 3) << "\n";
-		const dReal *pos = dBodyGetPosition(gripperParts[0].bid);
-		std::cout << " ODE tip location= " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n";
-		//std::cout << " ODE tip location= " << pos[2] << "\n";
-	}
-	ct++;
 	//-----------------------
 
 	dWorldStep(world, tStep);
@@ -558,6 +595,195 @@ static void simLoop(int pause)
 
 	// draw objects
 	drawObjects();
+	ct++;
+}
+
+void inverseKinematicsManual()
+{
+	// get current joint angles
+	std::vector<double> jntAngs;
+	getJointAngles(jntAngs);
+
+	//----- forward kinematics
+	// update DH parameters
+	Eigen::Matrix4d tm_0n, tmat;
+	for (int i = 0; i < 6; ++i)
+	{
+		dhVec[i].setTheta(jntAngs[i]);
+		dhVec[i].updateTM();
+	}
+
+	// Jacobain matrix
+	Eigen::MatrixXd Jg, J_star;
+	JgDHs(dhVec, tm_0n, Jg);
+	// Jacobian DLS Inverse	
+	double k = 0.1;
+	JgDLSInverse(Jg, k, J_star);
+
+	// ===== define desired trajectory =====
+	Point3 pnow, pd, pd_d, wd, wd_d;
+	Point3 ep, eo;
+	// tip position
+	pnow.x = tm_0n(0, 3); pnow.y = tm_0n(1, 3); pnow.z = tm_0n(2, 3);
+	// position error
+	ep = posTarget;
+
+	// orientation error
+	Quaternion quatd, quat;
+	Eigen::Matrix3d rmd, rmI;
+	rmI = Eigen::Matrix3d::Identity();
+	rot_zyx(angTarget.z, angTarget.y, angTarget.x, rmd);
+	quaternionFromRM(rmI, quat);
+	quaternionFromRM(rmd, quatd);
+	eo = quatd - quat;
+
+	// --- estimate joint speeds
+	double kp = 50;
+	double ko = 50;
+	Eigen::VectorXd ev(6), qdot(6);
+	ev << pd_d.x + kp*ep.x, pd_d.y + kp*ep.y, pd_d.z + kp*ep.z,
+		wd_d.x + ko*eo.x, wd_d.y + ko*eo.y, wd_d.z + ko*eo.z;
+	qdot = J_star*ev;
+	
+	// ----- Euler integration
+	for (int i = 0; i < 6; ++i)
+	{
+		jntAngs[i] += qdot(i)*tStep;
+		// update target angles
+		joints[i + 1].targetAngle = jntAngs[i];
+	}
+
+	if (ct % 20 == 0)
+	{
+		std::cout << "Joint target angle: \n";
+		for (int i = 0; i < 6; ++i)
+		{
+			std::cout << joints[i + 1].targetAngle << ",";
+		}
+		std::cout << "\n";
+		std::cout << "qdot: ";
+		for (int i = 0; i < 6; ++i)
+		{
+			std::cout << qdot(i) << ",";
+		}
+		std::cout << "\neo= " << eo << "\n";
+		std::cout << "quatd= " << quatd << "\n";
+
+		std::cout << "posTarget= " << posTarget;
+		std::cout << "angTarget= " << angTarget;
+		//std::cout << "angle= " << dhVec[1].getTheta() << " ODE angle= " << dJointGetHingeAngle(joints[2].jid) << "\n";
+		std::cout << "tip location= " << tm_0n(0, 3) << ", " << tm_0n(1, 3) << ", " << tm_0n(2, 3) << "\n";
+		//const dReal *pos = dBodyGetPosition(gripperParts[0].bid);
+		//std::cout << " ODE tip location= " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n";
+		//std::cout << " ODE tip location= " << pos[2] << "\n";
+	}
+	/*
+	if (ct % 200 == 0)
+	{
+	std::cout << "J_star: \n" << J_star<<"\n";
+	}*/
+
+}
+
+
+void inverseKinematics()
+{
+	if (ct >= 500) return;
+	// define desired trajectory
+	Point3 pnow, pd, pd_d, wd, wd_d;
+
+	pd.x = -0.001*ct;
+	pd.y = 0.001*ct;
+	pd.z = 1.3 - 0.001*ct;
+	pd_d.x = 0.1;
+	pd_d.y = 0.1;
+	pd_d.z = 0.1;
+	wd.y = 0.1;
+	wd_d.y = 0.1;
+		
+	// get current joint angles
+	std::vector<double> jntAngs;
+	getJointAngles(jntAngs);
+	
+	//----- forward kinematics
+	// update DH parameters
+	Eigen::Matrix4d tm_0n, tmat;
+	for (int i = 0; i < 6; ++i)
+	{
+		dhVec[i].setTheta(jntAngs[i]);
+		dhVec[i].updateTM();
+	}
+	
+	// Jacobain matrix
+	Eigen::MatrixXd Jg, J_star;
+	JgDHs(dhVec, tm_0n, Jg);
+	// Jacobian DLS Inverse	
+	double k = 0.1;
+	JgDLSInverse(Jg, k, J_star);
+	
+	
+
+	// --- calculate Errors
+	Quaternion quatd, quat;
+	Point3 ep, eo;
+	// position error
+	pnow.x = tm_0n(0, 3); pnow.y = tm_0n(1, 3); pnow.z = tm_0n(2, 3);
+	ep = pd - pnow;
+	// orientation error
+	Eigen::Matrix3d rmd, rm;
+	rm = tm_0n.block(0, 0, 3, 3);
+	roty(45. * M_PI / 180.0, rmd);
+	quaternionFromRM(rm, quat);
+	quaternionFromRM(rmd, quatd);
+	eo = quatd - quat;
+
+	// --- estimate joint speeds
+	double kp = 50;
+	double ko = 50;
+	Eigen::VectorXd ev(6), qdot(6);
+	ev << pd_d.x + kp*ep.x, pd_d.y + kp*ep.y, pd_d.z + kp*ep.z,
+		wd_d.x + ko*eo.x, wd_d.y + ko*eo.y, wd_d.z + ko*eo.z;
+	qdot = J_star*ev;
+	
+
+	// ----- Euler integration
+	for (int i = 0; i < 6; ++i)
+	{
+		jntAngs[i] += qdot(i)*tStep;
+		// update target angles
+		joints[i + 1].targetAngle = jntAngs[i];
+	}
+
+	
+
+	if (ct % 20 == 0)
+	{
+		std::cout << "Joint target angle: \n";
+		for (int i = 0; i < 6; ++i)
+		{
+			std::cout << joints[i + 1].targetAngle << ",";
+		}
+		std::cout << "\n";
+		std::cout << "qdot: ";
+		for (int i = 0; i < 6; ++i)
+		{
+			std::cout << qdot(i) << ",";
+		}
+		std::cout << "\neo= " << eo << "\n";
+		std::cout << "quatd= " << quatd << "\n";
+		
+		//std::cout << "angle= " << dhVec[1].getTheta() << " ODE angle= " << dJointGetHingeAngle(joints[2].jid) << "\n";
+		std::cout << "tip location= " << tm_0n(0, 3) << ", " << tm_0n(1, 3) << ", " << tm_0n(2, 3) << "\n";
+		//const dReal *pos = dBodyGetPosition(gripperParts[0].bid);
+		//std::cout << " ODE tip location= " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n";
+		//std::cout << " ODE tip location= " << pos[2] << "\n";
+	}
+	/*
+	if (ct % 200 == 0)
+	{
+		std::cout << "J_star: \n" << J_star<<"\n";
+	}*/
+
 }
 
 void drawArms()

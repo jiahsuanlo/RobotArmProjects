@@ -168,7 +168,13 @@ void rot_zyx(double thz, double thy, double thx, Eigen::Matrix3d &rmat);
 void tmDH(const DHParameter &dh, Eigen::Matrix4d &tm);
 void tmDHs(const std::vector<DHParameter> &dhs, Eigen::Matrix4d &tm);
 void tmDHs(const std::vector<DHParameter> &dhs,int iFirst, int iLast, Eigen::Matrix4d &tm);
-void JgDHs(const std::vector<DHParameter> &dhs, Eigen::MatrixXd &Jg);
+void JgDHs(const std::vector<DHParameter> &dhs, 
+	Eigen::Matrix4d &tm_0n, Eigen::MatrixXd &Jg);
+void JgRPInverse(const Eigen::MatrixXd &Jg, Eigen::MatrixXd &J_plus);
+void JgDLSInverse(const Eigen::MatrixXd &Jg, double k, Eigen::MatrixXd &J_star);
+
+
+
 void tmZYX(const ZYXParameter &zyx, Eigen::Matrix4d &tm);
 void tmZYXs(const std::vector<ZYXParameter> &zyxs, Eigen::Matrix4d &tm);
 void tmZYXs(const std::vector<ZYXParameter> &zyxs, int iFirst, int iLast,
@@ -177,8 +183,11 @@ void tmZYXs(const std::vector<ZYXParameter> &zyxs, int iFirst, int iLast,
 void obtainJointLinkInfoFromDH(const std::vector<DHParameter> &dmp,
 	std::vector<Point3> &jntAnchors, std::vector<Point3> &jntAxes,
 	std::vector<double> &linkLengths, std::vector<Point3> &linkCMs);
-void quaternionFromRM(const Eigen::Matrix3d &rm, Quaternion &quat);
 
+// ===== quaternion ====
+void quaternionFromRM(const Eigen::Matrix3d &rm, Quaternion &quat);
+Point3 operator -(const Quaternion &q1, const Quaternion &q2);
+std::ostream &operator<<(std::ostream &output, const Quaternion &q);
 
 
 

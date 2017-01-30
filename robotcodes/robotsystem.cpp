@@ -70,9 +70,9 @@ void rotx(double theta, Eigen::Matrix3d & rmat)
 {
 	double cth = std::cos(theta);
 	double sth = std::sin(theta);
-	rmat << cth, -sth, 0,
-		sth, cth, 0,
-		0, 0, 1;
+	rmat << 1,0,0,
+		0, cth, -sth,
+		0, sth, cth;
 }
 // rotation matrix about y axis
 void roty(double theta, Eigen::Matrix3d & rmat)
@@ -155,33 +155,65 @@ void tmDHs(const std::vector<DHParameter>& dhs, int iFirst, int iLast, Eigen::Ma
 }
 
 /* obtain geometric Jacobian from Denavit-Hartenburg parameters */
-void JgDHs(const std::vector<DHParameter>& dhs, Eigen::MatrixXd & Jg)
+void JgDHs(const std::vector<DHParameter>& dhs, Eigen::Matrix4d &tm_0n, 
+	Eigen::MatrixXd & Jg)
 {
 	int ncol = int(dhs.size());
 	int nrow = 6;  // 6 dof
 	Jg.resize(nrow, ncol);
 
 	// forward dynamics
-	Eigen::Matrix4d tm_be,tm;
-	tm_be = Eigen::Matrix4d::Identity();
+	Eigen::Matrix4d tm;
+	tm_0n = Eigen::Matrix4d::Identity();
 	for (int j = 0; j < ncol; ++j)
 	{
 		dhs[j].getTM(tm);
-		tm_be = tm_be*tm;		
+		tm_0n = tm_0n*tm;		
 	}
 	// build jacobian
+	Eigen::Vector3d p, pj, zj, jp;
+	Eigen::Matrix4d tmj;
+	p<< tm_0n(0,3), tm_0n(1,3), tm_0n(2,3);
+	tmj = Eigen::Matrix4d::Identity();
+
 	for (int j = 0; j < ncol; ++j)
 	{
 		dhs[j].getTM(tm);
-		if (dhs[j].jtype == JointType::Prismatic)
+		pj << tmj(0, 3), tmj(1, 3), tmj(2, 3);
+		zj << tmj(0, 2), tmj(1, 2), tmj(2, 2);
+		if (dhs[j].jtype == JointType::Prismatic) // prismatic joint
 		{
-
+			// position part
+			Jg(0, j) = zj(0); Jg(1, j) = zj(1); Jg(2, j) = zj(2);
+			// orientation part
+			Jg(3, j) = 0.0; Jg(4, j) = 0.0; Jg(5, j) = 0.0;			
 		}
 		else  // revolute joint
 		{
-
+			jp = zj.cross(p - pj);
+			// position part
+			Jg(0, j) = jp(0); Jg(1, j) = jp(1); Jg(2, j) = jp(2);
+			// orientation part
+			Jg(3, j) = zj(0); Jg(4, j) = zj(1); Jg(5, j) = zj(2);
 		}
+		tmj = tmj*tm;
 	}
+}
+
+/* Jacobain Right Pseudo inverse*/
+void JgRPInverse(const Eigen::MatrixXd & Jg, Eigen::MatrixXd & J_plus)
+{
+	Eigen::MatrixXd tmp;
+	tmp = Jg*(Jg.transpose());
+	J_plus = Jg.transpose()*(tmp.inverse());
+}
+
+/* Jacobian Damped Least Square inverse*/
+void JgDLSInverse(const Eigen::MatrixXd & Jg, double k, Eigen::MatrixXd & J_star)
+{
+	Eigen::MatrixXd tmp;
+	tmp= (Jg*Jg.transpose() + (k*k)*Eigen::MatrixXd::Identity(6,6));
+	J_star = Jg.transpose()*(tmp.inverse());
 }
 
 void tmZYX(const ZYXParameter & zyx, Eigen::Matrix4d & tm)
@@ -299,7 +331,7 @@ void quaternionFromRM(const Eigen::Matrix3d & rm, Quaternion & quat)
 	double r11, r12, r13, r21, r22, r23, r31, r32, r33;
 	r11= rm(0, 0); r12 = rm(0, 1); r13 = rm(0, 2);
 	r21 = rm(1, 0); r22 = rm(1, 1); r23 = rm(1, 2);
-	r31 = rm(2, 0); r32 = rm(2, 1); r23 = rm(2, 2);
+	r31 = rm(2, 0); r32 = rm(2, 1); r33 = rm(2, 2);
 
 	double sgn;
 	sgn= (int((r32 - r23)>0)*2.0)-1.0;
@@ -308,6 +340,24 @@ void quaternionFromRM(const Eigen::Matrix3d & rm, Quaternion & quat)
 	quat.e2 = 0.5*sgn*std::sqrt(r22 - r33 - r11 + 1.0);
 	sgn = (int((r21 - r12)>0)*2.0) - 1.0;
 	quat.e3 = 0.5*sgn*std::sqrt(r33 - r11 - r22 + 1.0);
+}
+
+
+Point3 operator-(const Quaternion & q1, const Quaternion & q2)
+{
+	Point3 out;
+	Eigen::Vector3d ev1, ev2, eo;
+	ev1<< q1.e1,q1.e2,q1.e3;
+	ev2<< q2.e1,q2.e2,q2.e3;
+	eo = q2.e0*ev1 - q1.e0*ev2 - ev1.cross(ev2);
+	out.x = eo(0);  out.y = eo(1); out.z = eo(2);
+	return out;
+}
+
+std::ostream & operator<<(std::ostream & output, const Quaternion & q)
+{
+	output << q.e0 << ", " << q.e1 << ", " << q.e2 << ", "<< q.e3<< "\n";
+	return output;
 }
 
 void TransMat::getEigenMat(Eigen::Matrix4d &tm)
