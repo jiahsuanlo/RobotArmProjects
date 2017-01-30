@@ -154,6 +154,36 @@ void tmDHs(const std::vector<DHParameter>& dhs, int iFirst, int iLast, Eigen::Ma
 	}
 }
 
+/* obtain geometric Jacobian from Denavit-Hartenburg parameters */
+void JgDHs(const std::vector<DHParameter>& dhs, Eigen::MatrixXd & Jg)
+{
+	int ncol = int(dhs.size());
+	int nrow = 6;  // 6 dof
+	Jg.resize(nrow, ncol);
+
+	// forward dynamics
+	Eigen::Matrix4d tm_be,tm;
+	tm_be = Eigen::Matrix4d::Identity();
+	for (int j = 0; j < ncol; ++j)
+	{
+		dhs[j].getTM(tm);
+		tm_be = tm_be*tm;		
+	}
+	// build jacobian
+	for (int j = 0; j < ncol; ++j)
+	{
+		dhs[j].getTM(tm);
+		if (dhs[j].jtype == JointType::Prismatic)
+		{
+
+		}
+		else  // revolute joint
+		{
+
+		}
+	}
+}
+
 void tmZYX(const ZYXParameter & zyx, Eigen::Matrix4d & tm)
 {
 	Eigen::Matrix3d rm;
@@ -278,4 +308,51 @@ void quaternionFromRM(const Eigen::Matrix3d & rm, Quaternion & quat)
 	quat.e2 = 0.5*sgn*std::sqrt(r22 - r33 - r11 + 1.0);
 	sgn = (int((r21 - r12)>0)*2.0) - 1.0;
 	quat.e3 = 0.5*sgn*std::sqrt(r33 - r11 - r22 + 1.0);
+}
+
+void TransMat::getEigenMat(Eigen::Matrix4d &tm)
+{
+	for (int i = 0; i < 4; ++i)
+	{
+		for (int j = 0; j < 4; ++j)
+		{
+			tm(i, j) = elem[i][j];
+		}
+	}
+}
+
+void DHParameter::updateTM()
+{
+	double cth = std::cos(theta);
+	double sth = std::sin(theta);
+	double ca = std::cos(alpha);
+	double sa = std::sin(alpha);
+
+	tm.elem[0][0] = cth;
+	tm.elem[0][1] = -sth*ca;
+	tm.elem[0][2] = sth*sa;
+	tm.elem[0][3] = a*cth;
+	tm.elem[1][0] = sth;
+	tm.elem[1][1] = cth*ca;
+	tm.elem[1][2] = -cth*sa;
+	tm.elem[1][3] = a*sth;
+	tm.elem[2][0] = 0;
+	tm.elem[2][1] = sa;
+	tm.elem[2][2] = ca;
+	tm.elem[2][3] = d;
+	tm.elem[3][0] = 0.0;
+	tm.elem[3][1] = 0.0;
+	tm.elem[3][2] = 0.0;
+	tm.elem[3][3] = 1.0;
+}
+
+void DHParameter::getTM(Eigen::Matrix4d & tm) const
+{
+	for (int i = 0; i < 4; ++i)
+	{
+		for (int j = 0; j < 4; ++j)
+		{
+			tm(i, j) = this->tm.elem[i][j];
+		}
+	}
 }

@@ -525,12 +525,16 @@ static void simLoop(int pause)
 
 	//----- forward kinematics
 	// update DH parameters
-	Eigen::Matrix4d tm;
+	Eigen::Matrix4d tm,tmat;
+	tm = Eigen::Matrix4d::Identity();
 	for (int i = 0; i < 6; ++i)
 	{
 		dhVec[i].setTheta(joints[i+1].targetAngle);
+		dhVec[i].updateTM();
+		dhVec[i].getTM(tmat);
+		tm = tm*tmat;
 	}
-	tmDHs(dhVec, tm);
+	//tmDHs(dhVec, tm);
 
 	if (ct % 20 == 0)
 	{

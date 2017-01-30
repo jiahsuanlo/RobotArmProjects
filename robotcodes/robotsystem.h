@@ -94,19 +94,45 @@ struct Joint
 };
 
 // ===== robot calculation functions =====
+enum class JointType {Prismatic,Revolute};
+
+struct TransMat
+{
+	TransMat() 
+	{
+		for (int i = 0; i < 4; ++i)
+		{
+			for (int j = 0; j < 4; ++j)
+			{
+				elem[i][j] = 0.0;
+			}
+		}
+	}
+	
+	void getEigenMat(Eigen::Matrix4d &tm);
+
+	double elem[4][4];
+};
 struct DHParameter
 {
-	DHParameter(double a, double alpha, double d, double theta) :
+	DHParameter(double a, double alpha, double d, double theta, JointType jtype= JointType::Revolute) :
 		a0(a), alpha0(alpha), d0(d), theta0(theta),
-		a(a), alpha(alpha), d(d), theta(theta) {}	
+		a(a), alpha(alpha), d(d), theta(theta), jtype(jtype) {}	
 	double a0, alpha0, d0, theta0;
+	JointType jtype;
+	TransMat tm;
+
 	// setters
+	void setD(double d) { this->d = d + d0; }
 	void setTheta(double th) { theta = theta0 + th; }
+	void updateTM();
+
 	// getters
 	double getA() const { return a; }
 	double getAlpha() const{ return alpha; }
 	double getD() const{ return d; }
 	double getTheta() const{ return theta; };
+	void getTM(Eigen::Matrix4d &tm) const;
 private:
 	double a;
 	double alpha;
@@ -142,6 +168,7 @@ void rot_zyx(double thz, double thy, double thx, Eigen::Matrix3d &rmat);
 void tmDH(const DHParameter &dh, Eigen::Matrix4d &tm);
 void tmDHs(const std::vector<DHParameter> &dhs, Eigen::Matrix4d &tm);
 void tmDHs(const std::vector<DHParameter> &dhs,int iFirst, int iLast, Eigen::Matrix4d &tm);
+void JgDHs(const std::vector<DHParameter> &dhs, Eigen::MatrixXd &Jg);
 void tmZYX(const ZYXParameter &zyx, Eigen::Matrix4d &tm);
 void tmZYXs(const std::vector<ZYXParameter> &zyxs, Eigen::Matrix4d &tm);
 void tmZYXs(const std::vector<ZYXParameter> &zyxs, int iFirst, int iLast,
