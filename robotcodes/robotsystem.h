@@ -139,16 +139,6 @@ private:
 	double d;
 	double theta;
 };
-struct ZYXParameter
-{
-	ZYXParameter() :thz(0.0), thy(0.0), thx(0.0) {};
-	ZYXParameter(const Point3 &dr, double thz, double thy, double thx):
-		thz(thz), thy(thy), thx(thx),dr(dr) {};
-	
-	Point3 dr;
-	double thz, thy, thx;
-};
-
 struct Quaternion
 {
 	Quaternion(double e0, double e1, double e2, double e3) :
@@ -172,13 +162,6 @@ void JgDHs(const std::vector<DHParameter> &dhs,
 	Eigen::Matrix4d &tm_0n, Eigen::MatrixXd &Jg);
 void JgRPInverse(const Eigen::MatrixXd &Jg, Eigen::MatrixXd &J_plus);
 void JgDLSInverse(const Eigen::MatrixXd &Jg, double k, Eigen::MatrixXd &J_star);
-
-
-
-void tmZYX(const ZYXParameter &zyx, Eigen::Matrix4d &tm);
-void tmZYXs(const std::vector<ZYXParameter> &zyxs, Eigen::Matrix4d &tm);
-void tmZYXs(const std::vector<ZYXParameter> &zyxs, int iFirst, int iLast,
-	Eigen::Matrix4d &tm);
 
 void obtainJointLinkInfoFromDH(const std::vector<DHParameter> &dmp,
 	std::vector<Point3> &jntAnchors, std::vector<Point3> &jntAxes,

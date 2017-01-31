@@ -216,68 +216,6 @@ void JgDLSInverse(const Eigen::MatrixXd & Jg, double k, Eigen::MatrixXd & J_star
 	J_star = Jg.transpose()*(tmp.inverse());
 }
 
-void tmZYX(const ZYXParameter & zyx, Eigen::Matrix4d & tm)
-{
-	Eigen::Matrix3d rm;
-	tm = Eigen::Matrix4d::Identity();
-	Eigen::Matrix4d tmat;
-	// z rotation
-	rotz(zyx.thz, rm);
-	tmat<< rm(0, 0), rm(0, 1), rm(0, 2), 0,
-		rm(1, 0), rm(1, 1), rm(1, 2),    0,
-		rm(2, 0), rm(2, 1), rm(2, 2), zyx.dr.z,
-		0.0, 0.0, 0.0, 1.0;
-	tm = tm*tmat;
-	// y rotation
-	roty(zyx.thy, rm);
-	tmat << rm(0, 0), rm(0, 1), rm(0, 2), 0,
-		rm(1, 0), rm(1, 1), rm(1, 2), zyx.dr.y,
-		rm(2, 0), rm(2, 1), rm(2, 2), 0,
-		0.0, 0.0, 0.0, 1.0;
-	tm = tm*tmat;
-	// x rotation
-	rotx(zyx.thx, rm);
-	tmat << rm(0, 0), rm(0, 1), rm(0, 2), zyx.dr.x,
-		rm(1, 0), rm(1, 1), rm(1, 2), 0,
-		rm(2, 0), rm(2, 1), rm(2, 2), 0,
-		0.0, 0.0, 0.0, 1.0;
-	tm = tm*tmat;
-}
-
-void tmZYXs(const std::vector<ZYXParameter>& zyxs, Eigen::Matrix4d & tm)
-{
-	// initialize tm
-	tm = Eigen::Matrix4d::Identity();
-	
-	Eigen::Matrix4d tmat;
-
-	for (auto zyx : zyxs)
-	{
-		tmZYX(zyx, tmat);
-		tm = tm*tmat;
-	}
-}
-
-void tmZYXs(const std::vector<ZYXParameter>& zyxs, int iFirst, int iLast, Eigen::Matrix4d & tm)
-{
-	// initialize tm
-	tm = Eigen::Matrix4d::Identity();
-
-	Eigen::Matrix4d tmat;
-	int npt = int(zyxs.size());
-	
-	// error protection
-	if (iLast < iFirst)
-		throw std::runtime_error("Last index is smaller than first");
-	
-
-	for (int i = iFirst; i <= std::min(npt - 1, iLast); ++i)
-	{
-		tmZYX(zyxs[i], tmat);
-		tm = tm*tmat;
-	}
-}
-
 /* Obtain joint and link information from Denavit-Hartenburg parameters
 output:
 	jntAnchors: joint anchor locations

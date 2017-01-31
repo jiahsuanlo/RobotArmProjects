@@ -2,6 +2,9 @@
 //
 
 #include "stdafx.h"
+#include <ode/ode.h> 
+#include <drawstuff/drawstuff.h>
+
 
 #include <robotsystem.h>
 #include<iostream>
@@ -24,7 +27,6 @@ static dJointGroupID contactGroup;
 
 static dGeomID ground;
 
-static std::vector<ZYXParameter> zyxVec;  // ZYX vector
 static std::vector<DHParameter> dhVec; // DH parameters
 static std::vector<Joint> joints;     // links, link[0] is a base;
 static std::vector<Joint> gjoints;  // gripper joints
@@ -41,7 +43,6 @@ static Point3 angTarget;
 dJointFeedback *feedback = new dJointFeedback;
 
 // === rigidbody modeling functions
-void configureZYXs();  // ZYX parameters
 void configureDHs(); // configure DH parameters
 void configureLinks();  // robot arms
 void configureGripper();  // gripper 
@@ -195,18 +196,6 @@ int mainTest(int argc, char *argv[])
 	
 	std::system("pause");
 	return 0;
-}
-
-void configureZYXs()
-{
-	std::vector<double> ls = {0.1,0.2,0.4,0.3,0.1,0.1,0.1 };
-	zyxVec.clear();
-	zyxVec.push_back(ZYXParameter(Point3(ls[0]+ls[1],0,0),0,-0.5*M_PI,-0.5*M_PI));  // link 1
-	zyxVec.push_back(ZYXParameter(Point3(ls[2],0,0), 0, 0, 0));  // link 2
-	zyxVec.push_back(ZYXParameter(Point3(ls[3], 0, 0), 0, 0.5*M_PI, 0));  // link 3
-	zyxVec.push_back(ZYXParameter(Point3(0,0,ls[4]), 0, -0.5*M_PI, 0));  // link 4
-	zyxVec.push_back(ZYXParameter(Point3(ls[5], 0, 0), 0, 0.5*M_PI, 0));  // link 5
-	zyxVec.push_back(ZYXParameter(Point3(0,0,ls[6]), 0, 0, 0));  // link 6
 }
 
 void configureDHs()
@@ -476,6 +465,9 @@ void start()
 
 void command(int cmd)
 {
+	angTarget= 0.9*angTarget;
+	posTarget = 0.9*posTarget;
+
 	switch (cmd)
 	{
 	case 'q':
@@ -516,40 +508,40 @@ void command(int cmd)
 		joints[6].targetAngle -= 0.05;
 		break;
 	case 'z':
-		posTarget.x += 0.01;
+		posTarget.x += 0.03;
 		break;
 	case 'x':
-		posTarget.x -= 0.01;
+		posTarget.x -= 0.03;
 		break;
 	case 'c':
-		posTarget.y += 0.01;
+		posTarget.y += 0.03;
 		break;
 	case 'v':
-		posTarget.y -= 0.01;
+		posTarget.y -= 0.03;
 		break;
 	case 'b':
-		posTarget.z += 0.01;
+		posTarget.z += 0.03;
 		break;
 	case 'n':
-		posTarget.z -= 0.01;
+		posTarget.z -= 0.03;
 		break;
 	case 'i':
-		angTarget.x += 0.01;
+		angTarget.x += 0.03;
 		break;
 	case 'k':
-		angTarget.x -= 0.01;
+		angTarget.x -= 0.03;
 		break;
 	case 'o':
-		angTarget.y += 0.01;
+		angTarget.y += 0.03;
 		break;
 	case 'l':
-		angTarget.y -= 0.01;
+		angTarget.y -= 0.03;
 		break;
 	case 'p':
-		angTarget.z += 0.01;
+		angTarget.z += 0.03;
 		break;
 	case ';':
-		angTarget.z -= 0.01;
+		angTarget.z -= 0.03;
 		break;
 	case 'u':
 		if (gjoints[1].targetAngle > 0)
@@ -576,6 +568,7 @@ void command(int cmd)
 static void simLoop(int pause)
 {
 	dSpaceCollide(space, 0, &nearCallback);
+	command(' ');
 
 	inverseKinematicsManual();
 
