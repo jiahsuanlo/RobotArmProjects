@@ -17,6 +17,7 @@
 
 double tStep = 0.01;
 static int ct = 0;
+static int ctrlMode = 0;  // 0: joint mode; 1: global mode; 2:end-effector mode
 static dWorldID world;         // a dynamic world;
 
 static dSpaceID space;
@@ -64,8 +65,9 @@ void start();  // ds draw start - camera view settings
 void command(int cmd);  // ds callback command - user input
 static void simLoop(int pause); // ds callback simLoop - simulation loop
 
-void inverseKinematics();
-void inverseKinematicsManual();
+void inverseKinematicsAuto();
+void inverseKinematicsGlobal();
+void inverseKinematicsEE();  // end-effector mode
 
 								// === drawing functions
 void drawArms(); // draw arms and gripper
@@ -470,78 +472,69 @@ void command(int cmd)
 
 	switch (cmd)
 	{
+	case 'z':
+		ctrlMode++;
+		ctrlMode = (ctrlMode % 3);
+		break;
 	case 'q':
-		joints[1].targetAngle += 0.05; //THETA[1] increment 0.05[rad]
-									   // increases THETA[1] when j key is pressed
+		if (ctrlMode == 0)
+			joints[1].targetAngle += 0.05; //THETA[1] increment 0.05[rad]
+		else
+			posTarget.x += 0.03; 
 		break;
 	case 'a':
-		joints[1].targetAngle -= 0.05;
+		if (ctrlMode == 0)
+			joints[1].targetAngle -= 0.05;
+		else
+			posTarget.x -= 0.03;
 		break;
 	case 'w':
-		joints[2].targetAngle += 0.05;
+		if (ctrlMode == 0)
+			joints[2].targetAngle += 0.05;
+		else
+			posTarget.y += 0.03;
 		break;
 	case 's':
-		joints[2].targetAngle -= 0.05;
+		if (ctrlMode == 0)
+			joints[2].targetAngle -= 0.05;
+		else
+			posTarget.y -= 0.03;
 		break;
 	case 'e':
-		joints[3].targetAngle += 0.05;
+		if (ctrlMode == 0)
+			joints[3].targetAngle += 0.05;
+		else
+			posTarget.z += 0.03;
 		break;
 	case 'd':
-		joints[3].targetAngle -= 0.05;
+		if (ctrlMode == 0)
+			joints[3].targetAngle -= 0.05;
+		else
+			posTarget.z -= 0.03;
 		break;
 	case 'r':
-		joints[4].targetAngle += 0.05;
+		if (ctrlMode == 0) joints[4].targetAngle += 0.05;
+		else angTarget.x += 0.03;
 		break;
 	case 'f':
-		joints[4].targetAngle -= 0.05;
+		if (ctrlMode == 0) joints[4].targetAngle -= 0.05;
+		else angTarget.x -= 0.03;
 		break;
 	case 't':
-		joints[5].targetAngle += 0.05;
+		if (ctrlMode == 0) joints[5].targetAngle += 0.05;
+		else angTarget.y += 0.03;
 		break;
 	case 'g':
-		joints[5].targetAngle -= 0.05;
+		if (ctrlMode == 0) joints[5].targetAngle -= 0.05;
+		else angTarget.y -= 0.03;
 		break;
 	case 'y':
-		joints[6].targetAngle += 0.05;
+		if (ctrlMode == 0) joints[6].targetAngle += 0.05;
+		else angTarget.z += 0.03;
 		break;
 	case 'h':
-		joints[6].targetAngle -= 0.05;
-		break;
-	case 'z':
-		posTarget.x += 0.03;
-		break;
-	case 'x':
-		posTarget.x -= 0.03;
-		break;
-	case 'c':
-		posTarget.y += 0.03;
-		break;
-	case 'v':
-		posTarget.y -= 0.03;
-		break;
-	case 'b':
-		posTarget.z += 0.03;
-		break;
-	case 'n':
-		posTarget.z -= 0.03;
-		break;
-	case 'i':
-		angTarget.x += 0.03;
-		break;
-	case 'k':
-		angTarget.x -= 0.03;
-		break;
-	case 'o':
-		angTarget.y += 0.03;
-		break;
-	case 'l':
-		angTarget.y -= 0.03;
-		break;
-	case 'p':
-		angTarget.z += 0.03;
-		break;
-	case ';':
-		angTarget.z -= 0.03;
+		if (ctrlMode == 0) joints[6].targetAngle -= 0.05;
+		else angTarget.z -= 0.03;
 		break;
 	case 'u':
 		if (gjoints[1].targetAngle > 0)
@@ -570,7 +563,10 @@ static void simLoop(int pause)
 	dSpaceCollide(space, 0, &nearCallback);
 	command(' ');
 
-	inverseKinematicsManual();
+	if (ct%30==0)
+		std::cout << "Ctrl Mode= " << ctrlMode << "\n";
+	if (ctrlMode==1)
+		inverseKinematicsManual();
 
 	jointControl();
 	gripperControl();	
@@ -591,7 +587,7 @@ static void simLoop(int pause)
 	ct++;
 }
 
-void inverseKinematicsManual()
+void inverseKinematicsGlobal()
 {
 	// get current joint angles
 	std::vector<double> jntAngs;
@@ -678,8 +674,95 @@ void inverseKinematicsManual()
 
 }
 
+void inverseKinematicsEE()
+{
+	// get current joint angles
+	std::vector<double> jntAngs;
+	getJointAngles(jntAngs);
 
-void inverseKinematics()
+	//----- forward kinematics
+	// update DH parameters
+	Eigen::Matrix4d tm_0n, tmat;
+	for (int i = 0; i < 6; ++i)
+	{
+		dhVec[i].setTheta(jntAngs[i]);
+		dhVec[i].updateTM();
+	}
+
+	// Jacobain matrix
+	Eigen::MatrixXd Jg, J_star;
+	JgDHs(dhVec, tm_0n, Jg);
+	// Jacobian DLS Inverse	
+	double k = 0.1;
+	JgDLSInverse(Jg, k, J_star);
+
+	// ===== define desired trajectory =====
+	Point3 pnow, pd, pd_d, wd, wd_d;
+	Point3 ep, eo;
+	// tip position
+	pnow.x = tm_0n(0, 3); pnow.y = tm_0n(1, 3); pnow.z = tm_0n(2, 3);
+	// position error
+	ep = posTarget;
+
+	// orientation error
+	Quaternion quatd, quat;
+	Eigen::Matrix3d rmd, rmI;
+	rmI = Eigen::Matrix3d::Identity();
+	rot_zyx(angTarget.z, angTarget.y, angTarget.x, rmd);
+	quaternionFromRM(rmI, quat);
+	quaternionFromRM(rmd, quatd);
+	eo = quatd - quat;
+
+	// --- estimate joint speeds
+	double kp = 50;
+	double ko = 50;
+	Eigen::VectorXd ev(6), qdot(6);
+	ev << pd_d.x + kp*ep.x, pd_d.y + kp*ep.y, pd_d.z + kp*ep.z,
+		wd_d.x + ko*eo.x, wd_d.y + ko*eo.y, wd_d.z + ko*eo.z;
+	qdot = J_star*ev;
+
+	// ----- Euler integration
+	for (int i = 0; i < 6; ++i)
+	{
+		jntAngs[i] += qdot(i)*tStep;
+		// update target angles
+		joints[i + 1].targetAngle = jntAngs[i];
+	}
+
+	if (ct % 20 == 0)
+	{
+		std::cout << "Joint target angle: \n";
+		for (int i = 0; i < 6; ++i)
+		{
+			std::cout << joints[i + 1].targetAngle << ",";
+		}
+		std::cout << "\n";
+		std::cout << "qdot: ";
+		for (int i = 0; i < 6; ++i)
+		{
+			std::cout << qdot(i) << ",";
+		}
+		std::cout << "\neo= " << eo << "\n";
+		std::cout << "quatd= " << quatd << "\n";
+
+		std::cout << "posTarget= " << posTarget;
+		std::cout << "angTarget= " << angTarget;
+		//std::cout << "angle= " << dhVec[1].getTheta() << " ODE angle= " << dJointGetHingeAngle(joints[2].jid) << "\n";
+		std::cout << "tip location= " << tm_0n(0, 3) << ", " << tm_0n(1, 3) << ", " << tm_0n(2, 3) << "\n";
+		//const dReal *pos = dBodyGetPosition(gripperParts[0].bid);
+		//std::cout << " ODE tip location= " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n";
+		//std::cout << " ODE tip location= " << pos[2] << "\n";
+	}
+	/*
+	if (ct % 200 == 0)
+	{
+	std::cout << "J_star: \n" << J_star<<"\n";
+	}*/
+
+}
+
+
+void inverseKinematicsAuto()
 {
 	if (ct >= 500) return;
 	// define desired trajectory
