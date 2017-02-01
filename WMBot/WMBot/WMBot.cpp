@@ -202,7 +202,7 @@ int mainTest(int argc, char *argv[])
 
 void configureDHs()
 {
-	std::vector<double> ls = { 0.1,0.2,0.4,0.3,0.1,0.1,0.1 };
+	std::vector<double> ls = { 0.1,0.2,0.4,0.3,0.1,0.1,0.25 };
 	dhVec.clear();
 	dhVec.push_back(DHParameter(0, -0.5*M_PI, ls[0]+ls[1], 0)); // link1
 	dhVec.push_back(DHParameter(ls[2],0,0,-0.5*M_PI));   // link2
@@ -338,17 +338,33 @@ void getJointAngles(std::vector<double> &angles)
 
 void jointControl()
 {
-	double k1 = 10.0, fMax = 300.0; // k1:gain, fMax: max torque[Nm]
+	double k1 = 10.0, fMax = 400.0; // k1:gain, fMax: max torque[Nm]
+	double k1d = 0.1;
 
 	int nj = int(joints.size());
 	double angNow;
-	double angErr;
+	double angErr, angD;
 	for (int i = 1; i != nj; ++i)
 	{
 		angNow = -dJointGetHingeAngle(joints[i].jid);  // current joint angle; [rad]
+		angD = -dJointGetHingeAngleRate(joints[i].jid);
 		angErr = joints[i].targetAngle - angNow;  // target - current; 
-		dJointSetHingeParam(joints[i].jid, dParamVel, -k1*angErr); // angular velocity;
+		dJointSetHingeParam(joints[i].jid, dParamVel, -k1*angErr-k1d*angD); // angular velocity;
 		dJointSetHingeParam(joints[i].jid, dParamFMax, fMax); // max torque;
+	}
+
+	if (ct % 20 == 0 && ctrlMode==0)
+	{
+		std::cout << "Joint target angle: \n";
+		for (int i = 0; i < 6; ++i)
+		{
+			std::cout << joints[i + 1].targetAngle << ",";
+		}
+		//std::cout << "angle= " << dhVec[1].getTheta() << " ODE angle= " << dJointGetHingeAngle(joints[2].jid) << "\n";
+		//std::cout << "tip location= " << tm_0n(0, 3) << ", " << tm_0n(1, 3) << ", " << tm_0n(2, 3) << "\n";
+		const dReal *pos = dBodyGetPosition(gripperParts[0].bid);
+		std::cout << "\nODE tip location= " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n";
+		//std::cout << " ODE tip location= " << pos[2] << "\n";
 	}
 }
 
@@ -467,8 +483,10 @@ void start()
 
 void command(int cmd)
 {
-	angTarget= 0.9*angTarget;
-	posTarget = 0.9*posTarget;
+	angTarget= (1.0-10*tStep)*angTarget;
+	posTarget = (1.0-10*tStep)*posTarget;
+
+	double angDelta = 0.1;
 
 	switch (cmd)
 	{
@@ -514,27 +532,27 @@ void command(int cmd)
 		break;
 	case 'r':
 		if (ctrlMode == 0) joints[4].targetAngle += 0.05;
-		else angTarget.x += 0.03;
+		else angTarget.x += angDelta;
 		break;
 	case 'f':
 		if (ctrlMode == 0) joints[4].targetAngle -= 0.05;
-		else angTarget.x -= 0.03;
+		else angTarget.x -= angDelta;
 		break;
 	case 't':
 		if (ctrlMode == 0) joints[5].targetAngle += 0.05;
-		else angTarget.y += 0.03;
+		else angTarget.y += angDelta;
 		break;
 	case 'g':
 		if (ctrlMode == 0) joints[5].targetAngle -= 0.05;
-		else angTarget.y -= 0.03;
+		else angTarget.y -= angDelta;
 		break;
 	case 'y':
 		if (ctrlMode == 0) joints[6].targetAngle += 0.05;
-		else angTarget.z += 0.03;
+		else angTarget.z += angDelta;
 		break;
 	case 'h':
 		if (ctrlMode == 0) joints[6].targetAngle -= 0.05;
-		else angTarget.z -= 0.03;
+		else angTarget.z -= angDelta;
 		break;
 	case 'u':
 		if (gjoints[1].targetAngle > 0)
@@ -551,10 +569,10 @@ void command(int cmd)
 	}
 
 	// English: limit target angles not to destroy a robot
-	for (auto &jnt : joints)
+	/*for (auto &jnt : joints)
 	{
 		jnt.boundJointTargetAngle();
-	}
+	}*/
 	//std::cout << joints[3].targetAngle << std::endl;
 }
 
@@ -565,8 +583,10 @@ static void simLoop(int pause)
 
 	if (ct%30==0)
 		std::cout << "Ctrl Mode= " << ctrlMode << "\n";
-	if (ctrlMode==1)
-		inverseKinematicsManual();
+	if (ctrlMode == 1)
+		inverseKinematicsGlobal();
+	else if (ctrlMode == 2)
+		inverseKinematicsEE();
 
 	jointControl();
 	gripperControl();	
@@ -611,6 +631,17 @@ void inverseKinematicsGlobal()
 
 	// ===== define desired trajectory =====
 	Point3 pnow, pd, pd_d, wd, wd_d;
+	
+	// tip speed
+	/*double speedT = 0.3;
+	double speedR = 0.3;
+	pd_d.x = (2.0*int(posTarget.x >= 0) - 1.0)*int(posTarget.x > 0)*speedT;
+	pd_d.y = (2.0*int(posTarget.y >= 0) - 1.0)*int(posTarget.y > 0)*speedT;
+	pd_d.z = (2.0*int(posTarget.z >= 0) - 1.0)*int(posTarget.z > 0)*speedT;
+	wd.x= (2.0*int(angTarget.x >= 0) - 1.0)*int(angTarget.x > 0)*speedR;
+	wd.y = (2.0*int(angTarget.y >= 0) - 1.0)*int(angTarget.x > 0)*speedR;
+	wd.z = (2.0*int(angTarget.z >= 0) - 1.0)*int(angTarget.x > 0)*speedR;*/
+
 	Point3 ep, eo;
 	// tip position
 	pnow.x = tm_0n(0, 3); pnow.y = tm_0n(1, 3); pnow.z = tm_0n(2, 3);
@@ -662,8 +693,8 @@ void inverseKinematicsGlobal()
 		std::cout << "angTarget= " << angTarget;
 		//std::cout << "angle= " << dhVec[1].getTheta() << " ODE angle= " << dJointGetHingeAngle(joints[2].jid) << "\n";
 		std::cout << "tip location= " << tm_0n(0, 3) << ", " << tm_0n(1, 3) << ", " << tm_0n(2, 3) << "\n";
-		//const dReal *pos = dBodyGetPosition(gripperParts[0].bid);
-		//std::cout << " ODE tip location= " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n";
+		const dReal *pos = dBodyGetPosition(gripperParts[0].bid);
+		std::cout << "ODE tip location= " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n";
 		//std::cout << " ODE tip location= " << pos[2] << "\n";
 	}
 	/*
@@ -676,7 +707,7 @@ void inverseKinematicsGlobal()
 
 void inverseKinematicsEE()
 {
-	// get current joint angles
+	// get current joint angles from ODE
 	std::vector<double> jntAngs;
 	getJointAngles(jntAngs);
 
@@ -692,26 +723,48 @@ void inverseKinematicsEE()
 	// Jacobain matrix
 	Eigen::MatrixXd Jg, J_star;
 	JgDHs(dhVec, tm_0n, Jg);
+	// convert Jacobian to frame n
+	Eigen::MatrixXd rn(6, 6);
+	Eigen::Matrix3d rm_0n;
+	rm_0n = tm_0n.block(0, 0, 3, 3);
+	rn = Eigen::MatrixXd::Zero(6, 6);
+	rn.block(0, 0, 3, 3) = rm_0n.transpose();
+	rn.block(3, 3, 3, 3) = rm_0n.transpose();
+	Jg = rn*Jg;
+
+
 	// Jacobian DLS Inverse	
-	double k = 0.1;
-	JgDLSInverse(Jg, k, J_star);
+	double k = 0.2; //0.2;
+	double JMag = std::abs(Jg.determinant());
+
+	if (JMag > 0.03)
+	{
+		J_star = Jg.inverse();
+	}
+	else
+	{
+		JgDLSInverse(Jg, k, J_star);
+	}
+		
 
 	// ===== define desired trajectory =====
 	Point3 pnow, pd, pd_d, wd, wd_d;
 	Point3 ep, eo;
+
 	// tip position
 	pnow.x = tm_0n(0, 3); pnow.y = tm_0n(1, 3); pnow.z = tm_0n(2, 3);
-	// position error
-	ep = posTarget;
+	// position error in n frame
+	ep.x = posTarget.x; ep.y = posTarget.y; ep.z = posTarget.z;
 
 	// orientation error
 	Quaternion quatd, quat;
 	Eigen::Matrix3d rmd, rmI;
 	rmI = Eigen::Matrix3d::Identity();
 	rot_zyx(angTarget.z, angTarget.y, angTarget.x, rmd);
+	
 	quaternionFromRM(rmI, quat);
-	quaternionFromRM(rmd, quatd);
-	eo = quatd - quat;
+	quaternionFromRM(rmd, quatd);  // convert to local frame
+	eo = quatd- quat;
 
 	// --- estimate joint speeds
 	double kp = 50;
@@ -749,6 +802,7 @@ void inverseKinematicsEE()
 		std::cout << "angTarget= " << angTarget;
 		//std::cout << "angle= " << dhVec[1].getTheta() << " ODE angle= " << dJointGetHingeAngle(joints[2].jid) << "\n";
 		std::cout << "tip location= " << tm_0n(0, 3) << ", " << tm_0n(1, 3) << ", " << tm_0n(2, 3) << "\n";
+		std::cout << "Jg det= " << JMag << "\n";
 		//const dReal *pos = dBodyGetPosition(gripperParts[0].bid);
 		//std::cout << " ODE tip location= " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n";
 		//std::cout << " ODE tip location= " << pos[2] << "\n";
