@@ -212,7 +212,8 @@ void JgRPInverse(const Eigen::MatrixXd & Jg, Eigen::MatrixXd & J_plus)
 void JgDLSInverse(const Eigen::MatrixXd & Jg, double k, Eigen::MatrixXd & J_star)
 {
 	Eigen::MatrixXd tmp;
-	tmp= (Jg*Jg.transpose() + (k*k)*Eigen::MatrixXd::Identity(6,6));
+	int nrow = Jg.rows();
+	tmp= (Jg*Jg.transpose() + (k*k)*Eigen::MatrixXd::Identity(nrow,nrow));
 	J_star = Jg.transpose()*(tmp.inverse());
 }
 
