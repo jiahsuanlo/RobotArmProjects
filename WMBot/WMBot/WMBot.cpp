@@ -344,16 +344,20 @@ void jointControl()
 	int nj = int(joints.size());
 	double angNow;
 	double angErr, angD;
+
+	std::vector<double> angErrVec;
 	for (int i = 1; i != nj; ++i)
 	{
 		angNow = -dJointGetHingeAngle(joints[i].jid);  // current joint angle; [rad]
 		angD = -dJointGetHingeAngleRate(joints[i].jid);
 		angErr = joints[i].targetAngle - angNow;  // target - current; 
-		dJointSetHingeParam(joints[i].jid, dParamVel, -k1*angErr-k1d*angD); // angular velocity;
+		dJointSetHingeParam(joints[i].jid, dParamVel, -k1*angErr+k1d*angD); // angular velocity;
 		dJointSetHingeParam(joints[i].jid, dParamFMax, fMax); // max torque;
+		angErrVec.push_back(angErr);
 	}
+	
 
-	if (ct % 20 == 0 && ctrlMode==0)
+	if (ct % 20 == 0)
 	{
 		std::cout << "Joint target angle: \n";
 		for (int i = 0; i < 6; ++i)
@@ -364,6 +368,10 @@ void jointControl()
 		//std::cout << "tip location= " << tm_0n(0, 3) << ", " << tm_0n(1, 3) << ", " << tm_0n(2, 3) << "\n";
 		const dReal *pos = dBodyGetPosition(gripperParts[0].bid);
 		std::cout << "\nODE tip location= " << pos[0] << ", " << pos[1] << ", " << pos[2] << "\n";
+		std::cout << "\nJointCtrl Err: ";
+		std::for_each(angErrVec.begin(), angErrVec.end(),
+			[](double x) {std::cout << x << ", "; });
+		std::cout << "\n";
 		//std::cout << " ODE tip location= " << pos[2] << "\n";
 	}
 }
