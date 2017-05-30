@@ -590,7 +590,8 @@ static void simLoop(int pause)
 	command(' ');
 
 	if (ct%30==0)
-		std::cout << "Ctrl Mode= " << ctrlMode << "\n";
+		std::cout << "Ctrl Mode= " << ctrlMode 
+		<< ", Time= "<< ct*tStep<<"\n";
 	if (ctrlMode == 1)
 		inverseKinematicsGlobal();
 	else if (ctrlMode == 2)
